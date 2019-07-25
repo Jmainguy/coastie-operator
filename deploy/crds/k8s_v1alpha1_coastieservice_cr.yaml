@@ -1,0 +1,7 @@
+apiVersion: k8s.soh.re/v1alpha1
+kind: CoastieService
+metadata:
+  name: testest
+spec:
+  tests:
+    - tcp
