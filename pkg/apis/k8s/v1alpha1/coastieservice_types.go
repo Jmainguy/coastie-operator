@@ -13,7 +13,9 @@ type CoastieServiceSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-    Tests   []string `json:"tests"`
+	Tests          []string `json:"tests"`
+	SlackChannelID string   `json:"slackchannelid"`
+	SlackToken     string   `json:"slacktoken"`
 }
 
 // CoastieServiceStatus defines the observed state of CoastieService
@@ -22,7 +24,7 @@ type CoastieServiceStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-    Tests []Test `json"tests"`
+	Tests []Test `json"tests"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -48,10 +50,9 @@ type CoastieServiceList struct {
 }
 
 type Test struct {
-    Name    string `json:"name"`
-    Status  string `json:"status"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
 }
-
 
 func init() {
 	SchemeBuilder.Register(&CoastieService{}, &CoastieServiceList{})

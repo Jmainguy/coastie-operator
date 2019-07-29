@@ -5,3 +5,5 @@ metadata:
 spec:
   tests:
     - tcp
+  slackchannelid: "FAKEID"
+  slacktoken: "FAKETOKEN"

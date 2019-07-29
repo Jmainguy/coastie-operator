@@ -1,21 +1,15 @@
 package coastieservice
 
 import (
-    //"fmt"
 	"context"
-    "reflect"
+	"fmt"
 
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    appsv1 "k8s.io/api/apps/v1"
-    resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -104,137 +98,20 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
-    // Check for tests
-    tests := instance.Spec.Tests
-    for _, v := range tests {
-        if v == "tcp" {
-	        // Define a new DaemonSet object
-        	tcpserver := tcpServer(instance)
-        	// Set CoastieService instance as the owner and controller
-        	if err := controllerutil.SetControllerReference(instance, tcpserver, r.scheme); err != nil {
-        		return reconcile.Result{}, err
-        	}
+	// Check for tests
+	tests := instance.Spec.Tests
+	for _, v := range tests {
+		if v == "tcp" {
+			err, retry := runTcpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			} else if retry {
+				return reconcile.Result{Requeue: true}, nil
+			}
+		}
+	}
 
-        	// Check if this DaemonSet already exists
-        	found := &appsv1.DaemonSet{}
-        	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: tcpserver.Name}, found)
-        	if err != nil && errors.IsNotFound(err) {
-        		reqLogger.Info("Creating a new DaemonSet", "DaemonSet.Namespace", tcpserver.Namespace, "DaemonSet.Name", tcpserver.Name)
-        		err = r.client.Create(context.TODO(), tcpserver)
-        		if err != nil {
-        			return reconcile.Result{}, err
-        		}
-        		// DaemonSet created successfully - return and requeue
-        		return reconcile.Result{Requeue: true}, nil
-        	} else if err != nil {
-        		return reconcile.Result{}, err
-        	}
-
-            // Else if No errors, and DS already exists, check its status
-            tcpTestStatus := k8sv1alpha1.Test{Name: "tcp", Status: "Fail"}
-            if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
-                tcpTestStatus = k8sv1alpha1.Test{Name: "tcp", Status: "Pass"}
-            }
-            if len(instance.Status.Tests) == 0 {
-                instance.Status.Tests = append(instance.Status.Tests, tcpTestStatus)
-            } else {
-                for k, v := range instance.Status.Tests {
-                    if v.Name == "tcp" {
-                        if !reflect.DeepEqual(tcpTestStatus, instance.Status.Tests[k]) {
-                            instance.Status.Tests[k] = tcpTestStatus
-       		                err := r.client.Status().Update(context.TODO(), instance)
-                       		if err != nil {
-       			                reqLogger.Error(err, "Failed to update CoastieService status")
-                       			return reconcile.Result{}, err
-                       		}
-                        }
-                    }
-                }
-            }
-
-
-            // Delete DaemonSet, test is finished
-            //err = r.client.Delete(context.TODO(), tcpserver)
-            //if err != nil {
-            //    return reconcile.Result{}, err
-            //}
-
-
-        	// tcpserver already exists - don't requeue
-        	reqLogger.Info("Skip reconcile of TCP test: DaemonSet already exists", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", found.Name)
-        }
-    }
-
+	fmt.Println("Huzzah, nothing left to do")
+	reqLogger.Info("Reconcile of CoastieService complete")
 	return reconcile.Result{}, nil
-}
-
-
-func tcpServer(cr *k8sv1alpha1.CoastieService) *appsv1.DaemonSet {
-    name := "tcpserver"
-    return &appsv1.DaemonSet{
-        ObjectMeta: metav1.ObjectMeta{
-            Name:      name,
-            Namespace: cr.Namespace,
-        },
-        Spec: appsv1.DaemonSetSpec{
-            Selector: &metav1.LabelSelector{
-                MatchLabels: map[string]string{
-                    "app": name,
-                },
-            },
-            Template: corev1.PodTemplateSpec{
-                ObjectMeta: metav1.ObjectMeta{
-                    Labels: map[string]string{
-                        "app": name,
-                    },
-                },
-                Spec: corev1.PodSpec{
-                    Containers: []corev1.Container{
-                        {
-                            Name:    name,
-                            Image:   "hub.soh.re/jmainguy/tcpserver",
-                            Ports: []corev1.ContainerPort{
-                                {
-                                    ContainerPort: 8081,
-                                },
-                            },
-                            Resources: corev1.ResourceRequirements{
-                                Limits: corev1.ResourceList{
-                                    "cpu": resource.MustParse("0.5"),
-                                    "memory": resource.MustParse("100M"),
-                                },
-                                Requests: corev1.ResourceList{
-                                    "cpu": resource.MustParse("0.5"),
-                                    "memory": resource.MustParse("100M"),
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    }
-}
-
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *k8sv1alpha1.CoastieService) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
-	}
 }
