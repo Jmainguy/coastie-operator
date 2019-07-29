@@ -2,7 +2,7 @@ package coastieservice
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -108,10 +108,35 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 			} else if retry {
 				return reconcile.Result{Requeue: true}, nil
 			}
+		} else if v == "udp" {
+			err, retry := runUdpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			} else if retry {
+				return reconcile.Result{Requeue: true}, nil
+			}
 		}
 	}
 
-	fmt.Println("Huzzah, nothing left to do")
 	reqLogger.Info("Reconcile of CoastieService complete")
-	return reconcile.Result{}, nil
+	// Sleep for 5 minutes and do it all over again
+	time.Sleep(270 * time.Second)
+	// Clean up old deployments
+	for _, v := range tests {
+		if v == "tcp" {
+			err = deleteTcpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		} else if v == "udp" {
+			err = deleteUdpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	}
+
+	// Give deleting things 30 seconds to delete
+	time.Sleep(30 * time.Second)
+	return reconcile.Result{Requeue: true}, nil
 }
