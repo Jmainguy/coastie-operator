@@ -115,12 +115,17 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 			} else if retry {
 				return reconcile.Result{Requeue: true}, nil
 			}
+		} else if v == "http" {
+			err, retry := runHttpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			} else if retry {
+				return reconcile.Result{Requeue: true}, nil
+			}
 		}
 	}
 
 	reqLogger.Info("Reconcile of CoastieService complete")
-	// Sleep for 5 minutes and do it all over again
-	time.Sleep(270 * time.Second)
 	// Clean up old deployments
 	for _, v := range tests {
 		if v == "tcp" {
@@ -133,10 +138,13 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 			if err != nil {
 				return reconcile.Result{}, err
 			}
+		} else if v == "http" {
+			err = deleteHttpTest(instance, r, reqLogger)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
-	// Give deleting things 30 seconds to delete
-	time.Sleep(30 * time.Second)
-	return reconcile.Result{Requeue: true}, nil
+    return reconcile.Result{RequeueAfter: time.Second*300}, nil
 }

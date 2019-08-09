@@ -1,18 +1,19 @@
 package coastieservice
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 	"strings"
 	"time"
+    "net/http"
 
+    instr "k8s.io/apimachinery/pkg/util/intstr"
 	"github.com/go-logr/logr"
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,13 +21,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
+func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
 	retry = false
-	name := fmt.Sprintf("%s-tcp", instance.Name)
+	name := fmt.Sprintf("%s-http", instance.Name)
 	// Define a new DaemonSet object
-	tcpDaemonSet := tcpServer(instance, name)
+	httpDaemonSet := httpServer(instance, name)
 	// Set CoastieService instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, tcpDaemonSet, r.scheme); err != nil {
+	if err := controllerutil.SetControllerReference(instance, httpDaemonSet, r.scheme); err != nil {
 		return err, retry
 	}
 
@@ -34,8 +35,8 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 	found := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, found)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new DaemonSet", "DaemonSet.Namespace", tcpDaemonSet.Namespace, "DaemonSet.Name", name)
-		err = r.client.Create(context.TODO(), tcpDaemonSet)
+		reqLogger.Info("Creating a new DaemonSet", "DaemonSet.Namespace", httpDaemonSet.Namespace, "DaemonSet.Name", name)
+		err = r.client.Create(context.TODO(), httpDaemonSet)
 		if err != nil {
 			return err, retry
 		}
@@ -47,38 +48,37 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 	}
 
 	// Else if No errors, and DS already exists, check its status
-	tcpTestStatus := k8sv1alpha1.Test{Name: "tcp", Status: "Fail"}
+	httpTestStatus := k8sv1alpha1.Test{Name: "http", Status: "Fail"}
 	if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
 		// All pods are now running, run test against them
 		// Spin up service
-		tcpService := tcpServerService(instance, name)
+		httpIngress := httpServerIngress(instance, name)
 		// Set CoastieService instance as the owner and controller
-		if err := controllerutil.SetControllerReference(instance, tcpService, r.scheme); err != nil {
+		if err := controllerutil.SetControllerReference(instance, httpIngress, r.scheme); err != nil {
 			return err, retry
 		}
-		// Check if Service exists
-		err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, tcpService)
+		// Check if Ingress exists
+		err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, httpIngress)
 		if err != nil && errors.IsNotFound(err) {
-			reqLogger.Info("Creating a new Service", "Service.Namespace", tcpService.Namespace, "Service.Name", name)
-			err = r.client.Create(context.TODO(), tcpService)
+			reqLogger.Info("Creating a new Ingress", "Ingress.Namespace", httpIngress.Namespace, "Ingress.Name", name)
+			err = r.client.Create(context.TODO(), httpIngress)
 			if err != nil {
 				return err, retry
 			}
-			// Service created successfully - return and requeue
+			// Ingress created successfully - return and requeue
 			retry = true
 			return nil, retry
 		}
-		// Service Exists, how do we connect to it?
-		tcpServerClusterIP := tcpService.Spec.ClusterIP
+		// Ingress Exists, how do we connect to it?
 		// Use client to connect to service, try 5 times if fail
 		// If this is still true later, fail with message
-		tcpFail := true
-		tcpStatus := ""
+		httpFail := true
+		httpStatus := ""
 		for i := 0; i < 5; i++ {
-			tcpStatus = tcpClient(tcpServerClusterIP, "8081")
-			if strings.Contains(tcpStatus, "SUCCESS") {
-				tcpTestStatus = k8sv1alpha1.Test{Name: "tcp", Status: "Pass"}
-				tcpFail = false
+			httpStatus = httpClient(instance.Spec.HostURL)
+			if strings.Contains(httpStatus, "SUCCESS") {
+				httpTestStatus = k8sv1alpha1.Test{Name: "http", Status: "Pass"}
+				httpFail = false
 				// Exit loop
 				i = 5
 			} else {
@@ -86,9 +86,9 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 				time.Sleep(2 * time.Second)
 			}
 		}
-		if tcpFail {
-			tcpTestStatus = k8sv1alpha1.Test{Name: "tcp", Status: "Fail"}
-			message := fmt.Sprintf("Coastie Operator: TCP Test failed. %s", tcpStatus)
+		if httpFail {
+			httpTestStatus = k8sv1alpha1.Test{Name: "http", Status: "Fail"}
+			message := fmt.Sprintf("Coastie Operator: HTTP Test failed. %s", httpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
             if err != nil {
@@ -104,7 +104,7 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		return nil, retry
 	}
 	if len(instance.Status.Tests) == 0 {
-		instance.Status.Tests = append(instance.Status.Tests, tcpTestStatus)
+		instance.Status.Tests = append(instance.Status.Tests, httpTestStatus)
 		err := r.client.Status().Update(context.TODO(), instance)
 		if err != nil {
 			reqLogger.Error(err, "Failed to update CoastieService status")
@@ -112,9 +112,9 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		}
 	} else {
 		for k, v := range instance.Status.Tests {
-			if v.Name == "tcp" {
-				if !reflect.DeepEqual(tcpTestStatus, instance.Status.Tests[k]) {
-					instance.Status.Tests[k] = tcpTestStatus
+			if v.Name == "http" {
+				if !reflect.DeepEqual(httpTestStatus, instance.Status.Tests[k]) {
+					instance.Status.Tests[k] = httpTestStatus
 					err := r.client.Status().Update(context.TODO(), instance)
 					if err != nil {
 						reqLogger.Error(err, "Failed to update CoastieService status")
@@ -125,11 +125,11 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		}
 	}
 
-	reqLogger.Info("Reached end of TCPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+	reqLogger.Info("Reached end of HTTPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry
 }
 
-func tcpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
+func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -151,10 +151,10 @@ func tcpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 					Containers: []corev1.Container{
 						{
 							Name:  name,
-							Image: "hub.soh.re/jmainguy/tcpserver",
+							Image: "hub.soh.re/jmainguy/httpserver",
 							Ports: []corev1.ContainerPort{
 								{
-									ContainerPort: 8081,
+									ContainerPort: 8080,
 								},
 							},
 							Resources: corev1.ResourceRequirements{
@@ -175,67 +175,58 @@ func tcpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 	}
 }
 
-func tcpServerService(cr *k8sv1alpha1.CoastieService, name string) *corev1.Service {
-	return &corev1.Service{
+func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv1beta1.Ingress {
+    port := instr.FromInt(80)
+	return &extensionsv1beta1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: cr.Namespace,
 		},
-		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{
-				{
-					Name:     "tcpserver",
-					Protocol: "TCP",
-					Port:     8081,
-				},
-			},
-			Selector: map[string]string{
-				"app": name,
-			},
-			//Type: "NodePort",
+		Spec: extensionsv1beta1.IngressSpec{
+            Backend: &extensionsv1beta1.IngressBackend{
+                ServiceName: "httpserver-service",
+                ServicePort: port,
+            },
+            Rules: []extensionsv1beta1.IngressRule{
+                {
+                    Host: cr.Spec.HostURL,
+                },
+            },
 		},
 	}
 }
 
-func tcpClient(ip, port string) (status string) {
-	// Node + port
-	uri := fmt.Sprintf("%s:%s", ip, port)
-	// Connect
-	c, err := net.Dial("tcp", uri)
-	if err != nil {
-		status = "ERROR: TCP unable to connect"
+func httpClient(hostURL string) (status string) {
+    url := fmt.Sprintf("http://%s/ruok", hostURL)
+    resp, err := http.Get(url)
+    if err != nil {
+		status = fmt.Sprintf("ERROR: HTTP Failed - Server: %s", err)
 		return
-	}
-	// Send message
-	question := fmt.Sprintln("Annie, are you ok?\n")
-	c.Write([]byte(question))
-	// Read response
-	message, _ := bufio.NewReader(c).ReadString('\n')
-	if message == "So, Annie are you ok?\n" {
-		c.Close()
-		status = "SUCCESS: TCP is working"
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode == 200 {
+		status = "SUCCESS: HTTP is working"
 		return
-	} else if message != "" {
-		c.Close()
-		status = fmt.Sprintf("ERROR: TCP Failed - Server: %s", message)
+    } else {
+		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %s", resp.StatusCode)
 		return
-	}
-	status = "ERROR: Should never reach this"
-	return
+    }
+    status = "ERROR: Should never reach this"
+    return
 }
 
-func deleteTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error) {
+func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error) {
 	err = nil
-	name := fmt.Sprintf("%s-tcp", instance.Name)
+	name := fmt.Sprintf("%s-http", instance.Name)
 	// Delete DaemonSet
-	tcpDaemonSet := tcpServer(instance, name)
-	err = r.client.Delete(context.TODO(), tcpDaemonSet)
+	httpDaemonSet := httpServer(instance, name)
+	err = r.client.Delete(context.TODO(), httpDaemonSet)
 	if err != nil {
 		return err
 	}
-	// Delete Service
-	tcpService := tcpServerService(instance, name)
-	err = r.client.Delete(context.TODO(), tcpService)
+	// Delete Ingress
+	httpIngress := httpServerIngress(instance, name)
+	err = r.client.Delete(context.TODO(), httpIngress)
 	if err != nil {
 		return err
 	}

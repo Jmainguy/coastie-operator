@@ -90,8 +90,13 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			udpTestStatus = k8sv1alpha1.Test{Name: "udp", Status: "Fail"}
 			message := fmt.Sprintf("Coastie Operator: UDP Test failed. %s", udpStatus)
 			// Alarm slack if failed
-			notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+            if err != nil {
+                reqLogger.Error(err, "Failed to send slack message")
+            }
+
 			// Requeue
+            retry = true
 			return nil, retry
 		}
 	} else {

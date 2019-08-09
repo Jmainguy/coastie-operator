@@ -16,6 +16,7 @@ type CoastieServiceSpec struct {
 	Tests          []string `json:"tests"`
 	SlackChannelID string   `json:"slackchannelid"`
 	SlackToken     string   `json:"slacktoken"`
+    HostURL        string   `json:"hosturl"`
 }
 
 // CoastieServiceStatus defines the observed state of CoastieService

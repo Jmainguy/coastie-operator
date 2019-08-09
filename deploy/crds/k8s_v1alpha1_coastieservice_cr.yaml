@@ -7,3 +7,4 @@ spec:
     - tcp
   slackchannelid: "FAKEID"
   slacktoken: "FAKETOKEN"
+  hosturl: "k8s.example.soh.re"
