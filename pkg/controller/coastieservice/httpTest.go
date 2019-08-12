@@ -3,12 +3,11 @@ package coastieservice
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"time"
-    "net/http"
 
-    instr "k8s.io/apimachinery/pkg/util/intstr"
 	"github.com/go-logr/logr"
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,7 +17,11 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	instr "k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+    "k8s.io/client-go/rest"
+    "k8s.io/client-go/kubernetes"
 )
 
 func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
@@ -91,54 +94,50 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 			message := fmt.Sprintf("Coastie Operator: HTTP Test failed. %s", httpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
-            if err != nil {
-                reqLogger.Error(err, "Failed to send slack message")
-            }
+			if err != nil {
+				reqLogger.Error(err, "Failed to send slack message")
+			}
 			// Requeue
-            retry = true
+			retry = true
 			return nil, retry
 		}
 	} else {
-        podList := &corev1.PodList{}
-        r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace}, podList)
-        nodes := getPodNode(name, podList.Items)
-        fmt.Println(podList.Items)
-        fmt.Println(nodes)
-        i := 0
-        for i < 5 {
-            // Wait 60 seconds
-            time.Sleep(60 * time.Second)
-            found := &appsv1.DaemonSet{}
-            err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, found)
-            if err != nil {
-			    message := fmt.Sprintf("Coastie Operator: Failed to get DaemonSet status")
-    			// Alarm slack if failed
-    			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
-                if err != nil {
-                    reqLogger.Error(err, "Failed to send slack message")
-                    return err, retry
-                }
-            }
-            if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
-                break
-            }
-            // Else
-    		reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-            i++
-        }
-        if i == 5 {
-            // If here, means Daemonset to not become ready withing 5 minutes
+		i := 0
+		for i < 5 {
+			// Wait 60 seconds
+			time.Sleep(60 * time.Second)
+			found := &appsv1.DaemonSet{}
+			err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, found)
+			if err != nil {
+				message := fmt.Sprintf("Coastie Operator: Failed to get DaemonSet status")
+				// Alarm slack if failed
+				err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+				if err != nil {
+					reqLogger.Error(err, "Failed to send slack message")
+					return err, retry
+				}
+			}
+			if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
+				break
+			}
+			// Else
+			reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+			i++
+		}
+		if i == 5 {
+			// If here, means Daemonset to not become ready withing 5 minutes
 
-	        message := fmt.Sprintf("Coastie Operator: DaemonSet took longer than 5 minutes to become ready")
-    		// Alarm slack if failed
-    		err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
-            if err != nil {
-                reqLogger.Error(err, "Failed to send slack message")
-                return err, retry
-            }
-            retry = true
+		    nodes := getNodesWithoutPods(r, name, instance.Namespace)
+			message := fmt.Sprintf("Coastie Operator: DaemonSet took longer than 5 minutes to become ready, nodes with issues: %s", nodes)
+			// Alarm slack if failed
+			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+			if err != nil {
+				reqLogger.Error(err, "Failed to send slack message")
+				return err, retry
+			}
+			retry = true
 			return nil, retry
-        }
+		}
 	}
 	if len(instance.Status.Tests) == 0 {
 		instance.Status.Tests = append(instance.Status.Tests, httpTestStatus)
@@ -213,43 +212,43 @@ func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 }
 
 func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv1beta1.Ingress {
-    port := instr.FromInt(80)
+	port := instr.FromInt(80)
 	return &extensionsv1beta1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: cr.Namespace,
 		},
 		Spec: extensionsv1beta1.IngressSpec{
-            Backend: &extensionsv1beta1.IngressBackend{
-                ServiceName: "httpserver-service",
-                ServicePort: port,
-            },
-            Rules: []extensionsv1beta1.IngressRule{
-                {
-                    Host: cr.Spec.HostURL,
-                },
-            },
+			Backend: &extensionsv1beta1.IngressBackend{
+				ServiceName: "httpserver-service",
+				ServicePort: port,
+			},
+			Rules: []extensionsv1beta1.IngressRule{
+				{
+					Host: cr.Spec.HostURL,
+				},
+			},
 		},
 	}
 }
 
 func httpClient(hostURL string) (status string) {
-    url := fmt.Sprintf("http://%s/ruok", hostURL)
-    resp, err := http.Get(url)
-    if err != nil {
+	url := fmt.Sprintf("http://%s/ruok", hostURL)
+	resp, err := http.Get(url)
+	if err != nil {
 		status = fmt.Sprintf("ERROR: HTTP Failed - Server: %s", err)
 		return
-    }
-    defer resp.Body.Close()
-    if resp.StatusCode == 200 {
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
 		status = "SUCCESS: HTTP is working"
 		return
-    } else {
+	} else {
 		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %s", resp.StatusCode)
 		return
-    }
-    status = "ERROR: Should never reach this"
-    return
+	}
+	status = "ERROR: Should never reach this"
+	return
 }
 
 func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error) {
@@ -270,15 +269,36 @@ func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieSer
 	return
 }
 
-func getPodNode(name string, pods []corev1.Pod) []string {
-	var nodes []string
-	for _, pod := range pods {
-        for _, v := range pod.ObjectMeta.OwnerReferences {
-            fmt.Println(v)
-            if v.Name == name {
-                nodes = append(nodes, pod.Status.HostIP)
-            }
-        }
+func getNodesWithoutPods(r *ReconcileCoastieService, name, namespace string) (nodes []string) {
+	opts := &client.ListOptions{}
+	nodesWithPods := make(map[string]string)
+	nodeList := &corev1.NodeList{}
+   	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
 	}
-    return nodes
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+    nodeList, _ = clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	for _, v := range nodeList.Items {
+		nodesWithPods[v.Name] = "True"
+	}
+
+	opts.SetLabelSelector(fmt.Sprintf("app=%s", name))
+	opts.InNamespace(namespace)
+
+	podList := &corev1.PodList{}
+	ctx := context.TODO()
+	r.client.List(ctx, opts, podList)
+
+	for _, v := range podList.Items {
+		delete(nodesWithPods, v.Spec.NodeName)
+	}
+
+	for k, _ := range nodesWithPods {
+		nodes = append(nodes, k)
+	}
+	return
 }
