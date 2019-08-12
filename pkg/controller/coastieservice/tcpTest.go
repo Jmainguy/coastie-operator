@@ -159,11 +159,11 @@ func tcpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 							},
 							Resources: corev1.ResourceRequirements{
 								Limits: corev1.ResourceList{
-									"cpu":    resource.MustParse("0.5"),
+									"cpu":    resource.MustParse("0.1"),
 									"memory": resource.MustParse("100M"),
 								},
 								Requests: corev1.ResourceList{
-									"cpu":    resource.MustParse("0.5"),
+									"cpu":    resource.MustParse("0.1"),
 									"memory": resource.MustParse("100M"),
 								},
 							},

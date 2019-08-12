@@ -99,9 +99,46 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 			return nil, retry
 		}
 	} else {
-		reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-		retry = true
-		return nil, retry
+        podList := &corev1.PodList{}
+        r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace}, podList)
+        nodes := getPodNode(name, podList.Items)
+        fmt.Println(podList.Items)
+        fmt.Println(nodes)
+        i := 0
+        for i < 5 {
+            // Wait 60 seconds
+            time.Sleep(60 * time.Second)
+            found := &appsv1.DaemonSet{}
+            err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, found)
+            if err != nil {
+			    message := fmt.Sprintf("Coastie Operator: Failed to get DaemonSet status")
+    			// Alarm slack if failed
+    			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+                if err != nil {
+                    reqLogger.Error(err, "Failed to send slack message")
+                    return err, retry
+                }
+            }
+            if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
+                break
+            }
+            // Else
+    		reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+            i++
+        }
+        if i == 5 {
+            // If here, means Daemonset to not become ready withing 5 minutes
+
+	        message := fmt.Sprintf("Coastie Operator: DaemonSet took longer than 5 minutes to become ready")
+    		// Alarm slack if failed
+    		err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+            if err != nil {
+                reqLogger.Error(err, "Failed to send slack message")
+                return err, retry
+            }
+            retry = true
+			return nil, retry
+        }
 	}
 	if len(instance.Status.Tests) == 0 {
 		instance.Status.Tests = append(instance.Status.Tests, httpTestStatus)
@@ -159,11 +196,11 @@ func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 							},
 							Resources: corev1.ResourceRequirements{
 								Limits: corev1.ResourceList{
-									"cpu":    resource.MustParse("0.5"),
+									"cpu":    resource.MustParse("0.1"),
 									"memory": resource.MustParse("100M"),
 								},
 								Requests: corev1.ResourceList{
-									"cpu":    resource.MustParse("0.5"),
+									"cpu":    resource.MustParse("0.1"),
 									"memory": resource.MustParse("100M"),
 								},
 							},
@@ -231,4 +268,17 @@ func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieSer
 		return err
 	}
 	return
+}
+
+func getPodNode(name string, pods []corev1.Pod) []string {
+	var nodes []string
+	for _, pod := range pods {
+        for _, v := range pod.ObjectMeta.OwnerReferences {
+            fmt.Println(v)
+            if v.Name == name {
+                nodes = append(nodes, pod.Status.HostIP)
+            }
+        }
+	}
+    return nodes
 }
