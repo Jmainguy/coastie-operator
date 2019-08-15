@@ -99,23 +99,23 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 		if v == "tcp" {
 			err, retry := runTcpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second*1}, nil
+				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		} else if v == "udp" {
 			err, retry := runUdpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second*1}, nil
+				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		} else if v == "http" {
 			err, retry := runHttpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second*1}, nil
+				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		}
 	}
@@ -126,20 +126,20 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 		if v == "tcp" {
 			err = deleteTcpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			}
 		} else if v == "udp" {
 			err = deleteUdpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			}
 		} else if v == "http" {
 			err = deleteHttpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second*1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 1}, err
 			}
 		}
 	}
 
-    return reconcile.Result{RequeueAfter: time.Second*300}, nil
+	return reconcile.Result{RequeueAfter: time.Second * 300}, nil
 }

@@ -91,12 +91,12 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			message := fmt.Sprintf("Coastie Operator: UDP Test failed. %s", udpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
-            if err != nil {
-                reqLogger.Error(err, "Failed to send slack message")
-            }
+			if err != nil {
+				reqLogger.Error(err, "Failed to send slack message")
+			}
 
 			// Requeue
-            retry = true
+			retry = true
 			return nil, retry
 		}
 	} else {
@@ -104,11 +104,11 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		retry = true
 		return nil, retry
 	}
-    udpAppend := true
+	udpAppend := true
 	if len(instance.Status.Tests) != 0 {
 		for k, v := range instance.Status.Tests {
 			if v.Name == "udp" {
-                udpAppend = false
+				udpAppend = false
 				if !reflect.DeepEqual(udpTestStatus, instance.Status.Tests[k]) {
 					instance.Status.Tests[k] = udpTestStatus
 					err := r.client.Status().Update(context.TODO(), instance)
@@ -120,14 +120,14 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			}
 		}
 	}
-    if udpAppend {
+	if udpAppend {
 		instance.Status.Tests = append(instance.Status.Tests, udpTestStatus)
 		err := r.client.Status().Update(context.TODO(), instance)
 		if err != nil {
 			reqLogger.Error(err, "Failed to update CoastieService status")
 			return err, retry
 		}
-    }
+	}
 
 	reqLogger.Info("Reached end of UDPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry
@@ -211,11 +211,11 @@ func udpClient(ip, port string) (status string) {
 		return
 	}
 	// Send message
-    question := fmt.Sprintln("ruok?")
+	question := fmt.Sprintln("ruok?")
 	c.Write([]byte(question))
 	// Read response
 	message, _ := bufio.NewReader(c).ReadString('\n')
-    if message == "imok\n" {
+	if message == "imok\n" {
 		c.Close()
 		status = "SUCCESS: UDP is working"
 		return

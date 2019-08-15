@@ -137,12 +137,12 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 				}
 			}
 			if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
-    			reqLogger.Info("DaemonSet is ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-                i = 10
+				reqLogger.Info("DaemonSet is ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+				i = 10
 			} else {
-    			reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-			    i++
-            }
+				reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+				i++
+			}
 		}
 		if i == 5 {
 			// If here, means Daemonset to not become ready within 5 minutes
@@ -157,7 +157,7 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 			}
 			retry = true
 			return nil, retry
-        } else {
+		} else {
 			retry = true
 			return nil, retry
 		}
@@ -270,15 +270,15 @@ func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv
 					Host: cr.Spec.HostURL,
 					IngressRuleValue: extensionsv1beta1.IngressRuleValue{
 						HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
-	    					Paths: []extensionsv1beta1.HTTPIngressPath{
-    							{
-    								Backend: extensionsv1beta1.IngressBackend{
-    									ServiceName: name,
-    									ServicePort: port,
-    								},
-    							},
-                            },
-                        },
+							Paths: []extensionsv1beta1.HTTPIngressPath{
+								{
+									Backend: extensionsv1beta1.IngressBackend{
+										ServiceName: name,
+										ServicePort: port,
+									},
+								},
+							},
+						},
 					},
 				},
 			},

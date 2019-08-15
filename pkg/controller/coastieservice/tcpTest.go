@@ -91,11 +91,11 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			message := fmt.Sprintf("Coastie Operator: TCP Test failed. %s", tcpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
-            if err != nil {
-                reqLogger.Error(err, "Failed to send slack message")
-            }
+			if err != nil {
+				reqLogger.Error(err, "Failed to send slack message")
+			}
 			// Requeue
-            retry = true
+			retry = true
 			return nil, retry
 		}
 	} else {
