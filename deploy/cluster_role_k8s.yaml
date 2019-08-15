@@ -14,31 +14,17 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods
   - services
-  - endpoints
-  - persistentvolumeclaims
-  - events
+  - pods
   - configmaps
-  - secrets
   verbs:
   - '*'
 - apiGroups:
   - apps
   resources:
-  - deployments
   - daemonsets
-  - replicasets
-  - statefulsets
   verbs:
   - '*'
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
-  - servicemonitors
-  verbs:
-  - get
-  - create
 - apiGroups:
   - apps
   resourceNames:

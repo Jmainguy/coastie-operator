@@ -18,10 +18,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	instr "k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-    "k8s.io/client-go/rest"
-    "k8s.io/client-go/kubernetes"
 )
 
 func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
@@ -55,6 +55,25 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 	if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
 		// All pods are now running, run test against them
 		// Spin up service
+		httpService := httpServerService(instance, name)
+		// Set CoastieService instance as the owner and controller
+		if err := controllerutil.SetControllerReference(instance, httpService, r.scheme); err != nil {
+			return err, retry
+		}
+		// Check if Service exists
+		err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, httpService)
+		if err != nil && errors.IsNotFound(err) {
+			reqLogger.Info("Creating a new Service", "Service.Namespace", httpService.Namespace, "Service.Name", name)
+			err = r.client.Create(context.TODO(), httpService)
+			if err != nil {
+				return err, retry
+			}
+			// Service created successfully - return and requeue
+			retry = true
+			return nil, retry
+		}
+		// Service Exists
+		// Spin up ingress
 		httpIngress := httpServerIngress(instance, name)
 		// Set CoastieService instance as the owner and controller
 		if err := controllerutil.SetControllerReference(instance, httpIngress, r.scheme); err != nil {
@@ -118,16 +137,17 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 				}
 			}
 			if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
-				break
-			}
-			// Else
-			reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-			i++
+    			reqLogger.Info("DaemonSet is ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+                i = 10
+			} else {
+    			reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+			    i++
+            }
 		}
 		if i == 5 {
-			// If here, means Daemonset to not become ready withing 5 minutes
+			// If here, means Daemonset to not become ready within 5 minutes
 
-		    nodes := getNodesWithoutPods(r, name, instance.Namespace)
+			nodes := getNodesWithoutPods(r, name, instance.Namespace)
 			message := fmt.Sprintf("Coastie Operator: DaemonSet took longer than 5 minutes to become ready, nodes with issues: %s", nodes)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
@@ -135,6 +155,9 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 				reqLogger.Error(err, "Failed to send slack message")
 				return err, retry
 			}
+			retry = true
+			return nil, retry
+        } else {
 			retry = true
 			return nil, retry
 		}
@@ -211,6 +234,29 @@ func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 	}
 }
 
+func httpServerService(cr *k8sv1alpha1.CoastieService, name string) *corev1.Service {
+	port := instr.FromInt(8080)
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cr.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "httpserver",
+					Protocol:   "TCP",
+					Port:       80,
+					TargetPort: port,
+				},
+			},
+			Selector: map[string]string{
+				"app": name,
+			},
+		},
+	}
+}
+
 func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv1beta1.Ingress {
 	port := instr.FromInt(80)
 	return &extensionsv1beta1.Ingress{
@@ -219,13 +265,21 @@ func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv
 			Namespace: cr.Namespace,
 		},
 		Spec: extensionsv1beta1.IngressSpec{
-			Backend: &extensionsv1beta1.IngressBackend{
-				ServiceName: "httpserver-service",
-				ServicePort: port,
-			},
 			Rules: []extensionsv1beta1.IngressRule{
 				{
 					Host: cr.Spec.HostURL,
+					IngressRuleValue: extensionsv1beta1.IngressRuleValue{
+						HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
+	    					Paths: []extensionsv1beta1.HTTPIngressPath{
+    							{
+    								Backend: extensionsv1beta1.IngressBackend{
+    									ServiceName: name,
+    									ServicePort: port,
+    								},
+    							},
+                            },
+                        },
+					},
 				},
 			},
 		},
@@ -244,7 +298,7 @@ func httpClient(hostURL string) (status string) {
 		status = "SUCCESS: HTTP is working"
 		return
 	} else {
-		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %s", resp.StatusCode)
+		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %d", resp.StatusCode)
 		return
 	}
 	status = "ERROR: Should never reach this"
@@ -257,6 +311,12 @@ func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieSer
 	// Delete DaemonSet
 	httpDaemonSet := httpServer(instance, name)
 	err = r.client.Delete(context.TODO(), httpDaemonSet)
+	if err != nil {
+		return err
+	}
+	// Delete Service
+	httpService := httpServerService(instance, name)
+	err = r.client.Delete(context.TODO(), httpService)
 	if err != nil {
 		return err
 	}
@@ -273,7 +333,7 @@ func getNodesWithoutPods(r *ReconcileCoastieService, name, namespace string) (no
 	opts := &client.ListOptions{}
 	nodesWithPods := make(map[string]string)
 	nodeList := &corev1.NodeList{}
-   	config, err := rest.InClusterConfig()
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
@@ -281,7 +341,7 @@ func getNodesWithoutPods(r *ReconcileCoastieService, name, namespace string) (no
 	if err != nil {
 		panic(err.Error())
 	}
-    nodeList, _ = clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodeList, _ = clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	for _, v := range nodeList.Items {
 		nodesWithPods[v.Name] = "True"
 	}
