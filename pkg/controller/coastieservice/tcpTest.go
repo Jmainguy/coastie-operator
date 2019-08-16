@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 
@@ -47,7 +46,7 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 	}
 
 	// Else if No errors, and DS already exists, check its status
-	tcpTestStatus := k8sv1alpha1.Test{Name: "tcp", Status: "Fail"}
+	TestStatus := k8sv1alpha1.Test{Status: "Fail"}
 	if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
 		// All pods are now running, run test against them
 		// Spin up service
@@ -77,7 +76,7 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		for i := 0; i < 5; i++ {
 			tcpStatus = tcpClient(tcpServerClusterIP, "8081")
 			if strings.Contains(tcpStatus, "SUCCESS") {
-				tcpTestStatus = k8sv1alpha1.Test{Name: "tcp", Status: "Pass"}
+				TestStatus = k8sv1alpha1.Test{Status: "Pass"}
 				tcpFail = false
 				// Exit loop
 				i = 5
@@ -87,7 +86,7 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			}
 		}
 		if tcpFail {
-			tcpTestStatus = k8sv1alpha1.Test{Name: "tcp", Status: "Fail"}
+			TestStatus = k8sv1alpha1.Test{Status: "Fail"}
 			message := fmt.Sprintf("Coastie Operator: TCP Test failed. %s", tcpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
@@ -103,27 +102,11 @@ func runTcpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		retry = true
 		return nil, retry
 	}
-	if len(instance.Status.Tests) == 0 {
-		instance.Status.Tests = append(instance.Status.Tests, tcpTestStatus)
-		err := r.client.Status().Update(context.TODO(), instance)
-		if err != nil {
-			reqLogger.Error(err, "Failed to update CoastieService status")
-			return err, retry
-		}
-	} else {
-		for k, v := range instance.Status.Tests {
-			if v.Name == "tcp" {
-				if !reflect.DeepEqual(tcpTestStatus, instance.Status.Tests[k]) {
-					instance.Status.Tests[k] = tcpTestStatus
-					err := r.client.Status().Update(context.TODO(), instance)
-					if err != nil {
-						reqLogger.Error(err, "Failed to update CoastieService status")
-						return err, retry
-					}
-				}
-			}
-		}
-	}
+
+    err = updateCoastieStatus(instance, TestStatus, "tcp", reqLogger, r)
+    if err != nil {
+        return err, retry
+    }
 
 	reqLogger.Info("Reached end of TCPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry

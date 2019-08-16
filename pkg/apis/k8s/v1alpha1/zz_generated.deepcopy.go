@@ -95,8 +95,10 @@ func (in *CoastieServiceStatus) DeepCopyInto(out *CoastieServiceStatus) {
 	*out = *in
 	if in.Tests != nil {
 		in, out := &in.Tests, &out.Tests
-		*out = make([]Test, len(*in))
-		copy(*out, *in)
+		*out = make(map[string]Test, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 	return
 }

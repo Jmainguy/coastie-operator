@@ -22,10 +22,7 @@ type CoastieServiceSpec struct {
 // CoastieServiceStatus defines the observed state of CoastieService
 // +k8s:openapi-gen=true
 type CoastieServiceStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Tests []Test `json"tests"`
+	Tests map[string]Test `json"tests"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -51,8 +48,8 @@ type CoastieServiceList struct {
 }
 
 type Test struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	Status string `json:"status,omitempty"`
+    DaemonSetCreationTime   string `json:"status,omitempty"`
 }
 
 func init() {

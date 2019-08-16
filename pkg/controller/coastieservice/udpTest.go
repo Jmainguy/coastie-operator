@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 
@@ -47,7 +46,7 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 	}
 
 	// Else if No errors, and DS already exists, check its status
-	udpTestStatus := k8sv1alpha1.Test{Name: "udp", Status: "Fail"}
+	TestStatus := k8sv1alpha1.Test{Status: "Fail"}
 	if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
 		// All pods are now running, run test against them
 		// Spin up service
@@ -77,7 +76,7 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		for i := 0; i < 5; i++ {
 			udpStatus = udpClient(udpServerClusterIP, "8082")
 			if strings.Contains(udpStatus, "SUCCESS") {
-				udpTestStatus = k8sv1alpha1.Test{Name: "udp", Status: "Pass"}
+				TestStatus = k8sv1alpha1.Test{Status: "Pass"}
 				udpFail = false
 				// Exit loop
 				i = 5
@@ -87,7 +86,7 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 			}
 		}
 		if udpFail {
-			udpTestStatus = k8sv1alpha1.Test{Name: "udp", Status: "Fail"}
+			TestStatus = k8sv1alpha1.Test{Status: "Fail"}
 			message := fmt.Sprintf("Coastie Operator: UDP Test failed. %s", udpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
@@ -104,30 +103,11 @@ func runUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService
 		retry = true
 		return nil, retry
 	}
-	udpAppend := true
-	if len(instance.Status.Tests) != 0 {
-		for k, v := range instance.Status.Tests {
-			if v.Name == "udp" {
-				udpAppend = false
-				if !reflect.DeepEqual(udpTestStatus, instance.Status.Tests[k]) {
-					instance.Status.Tests[k] = udpTestStatus
-					err := r.client.Status().Update(context.TODO(), instance)
-					if err != nil {
-						reqLogger.Error(err, "Failed to update CoastieService status")
-						return err, retry
-					}
-				}
-			}
-		}
-	}
-	if udpAppend {
-		instance.Status.Tests = append(instance.Status.Tests, udpTestStatus)
-		err := r.client.Status().Update(context.TODO(), instance)
-		if err != nil {
-			reqLogger.Error(err, "Failed to update CoastieService status")
-			return err, retry
-		}
-	}
+
+    err = updateCoastieStatus(instance, TestStatus, "udp", reqLogger, r)
+    if err != nil {
+        return err, retry
+    }
 
 	reqLogger.Info("Reached end of UDPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry

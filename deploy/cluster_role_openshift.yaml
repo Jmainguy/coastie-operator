@@ -27,6 +27,13 @@ rules:
   - '*'
 - apiGroups:
   - apps
+  resources:
+  - replicasets
+  - deployments
+  verbs:
+  - get
+- apiGroups:
+  - apps
   resourceNames:
   - coastie-operator
   resources:

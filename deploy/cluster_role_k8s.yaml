@@ -23,6 +23,7 @@ rules:
   - apps
   resources:
   - daemonsets
+  - replicasets
   verbs:
   - '*'
 - apiGroups:

@@ -1,27 +1,26 @@
 package coastieservice
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"reflect"
-	"strings"
-	"time"
+    "context"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
 
-	"github.com/go-logr/logr"
-	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	resource "k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	instr "k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+    "github.com/go-logr/logr"
+    k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
+    appsv1 "k8s.io/api/apps/v1"
+    corev1 "k8s.io/api/core/v1"
+    extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+    "k8s.io/apimachinery/pkg/api/errors"
+    resource "k8s.io/apimachinery/pkg/api/resource"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    "k8s.io/apimachinery/pkg/types"
+    instr "k8s.io/apimachinery/pkg/util/intstr"
+    "k8s.io/client-go/kubernetes"
+    "k8s.io/client-go/rest"
+    "sigs.k8s.io/controller-runtime/pkg/client"
+    "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
@@ -44,6 +43,19 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 			return err, retry
 		}
 		// DaemonSet created successfully - return and requeue
+        now := time.Now()
+        dsct := now.Format(time.RFC3339)
+        TestStatus := k8sv1alpha1.Test{
+            Status: "Running",
+            DaemonSetCreationTime: dsct,
+        }
+
+        err = updateCoastieStatus(instance, TestStatus, "http", reqLogger, r)
+	    if err != nil {
+	    	return err, retry
+    	}
+
+		reqLogger.Info("Daemonset Created Successfully", "DaemonSetCreationTime", dsct, "DaemonSet.Namespace", httpDaemonSet.Namespace, "DaemonSet.Name", name)
 		retry = true
 		return nil, retry
 	} else if err != nil {
@@ -51,7 +63,6 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 	}
 
 	// Else if No errors, and DS already exists, check its status
-	httpTestStatus := k8sv1alpha1.Test{Name: "http", Status: "Fail"}
 	if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
 		// All pods are now running, run test against them
 		// Spin up service
@@ -99,7 +110,14 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		for i := 0; i < 5; i++ {
 			httpStatus = httpClient(instance.Spec.HostURL)
 			if strings.Contains(httpStatus, "SUCCESS") {
-				httpTestStatus = k8sv1alpha1.Test{Name: "http", Status: "Pass"}
+                TestStatus := k8sv1alpha1.Test{
+                    Status: "Passed",
+                    DaemonSetCreationTime: "testTesttest",
+                }
+                err = updateCoastieStatus(instance, TestStatus, "http", reqLogger, r)
+                if err != nil {
+                    return err, retry
+                }
 				httpFail = false
 				// Exit loop
 				i = 5
@@ -109,7 +127,14 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 			}
 		}
 		if httpFail {
-			httpTestStatus = k8sv1alpha1.Test{Name: "http", Status: "Fail"}
+            TestStatus := k8sv1alpha1.Test{
+                Status: "Failed",
+                DaemonSetCreationTime: "testTesttest",
+            }
+            err = updateCoastieStatus(instance, TestStatus, "http", reqLogger, r)
+            if err != nil {
+                return err, retry
+            }
 			message := fmt.Sprintf("Coastie Operator: HTTP Test failed. %s", httpStatus)
 			// Alarm slack if failed
 			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
@@ -160,27 +185,6 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		} else {
 			retry = true
 			return nil, retry
-		}
-	}
-	if len(instance.Status.Tests) == 0 {
-		instance.Status.Tests = append(instance.Status.Tests, httpTestStatus)
-		err := r.client.Status().Update(context.TODO(), instance)
-		if err != nil {
-			reqLogger.Error(err, "Failed to update CoastieService status")
-			return err, retry
-		}
-	} else {
-		for k, v := range instance.Status.Tests {
-			if v.Name == "http" {
-				if !reflect.DeepEqual(httpTestStatus, instance.Status.Tests[k]) {
-					instance.Status.Tests[k] = httpTestStatus
-					err := r.client.Status().Update(context.TODO(), instance)
-					if err != nil {
-						reqLogger.Error(err, "Failed to update CoastieService status")
-						return err, retry
-					}
-				}
-			}
 		}
 	}
 
