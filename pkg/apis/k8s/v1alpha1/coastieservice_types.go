@@ -16,13 +16,13 @@ type CoastieServiceSpec struct {
 	Tests          []string `json:"tests"`
 	SlackChannelID string   `json:"slackchannelid"`
 	SlackToken     string   `json:"slacktoken"`
-    HostURL        string   `json:"hosturl"`
+	HostURL        string   `json:"hosturl"`
 }
 
 // CoastieServiceStatus defines the observed state of CoastieService
 // +k8s:openapi-gen=true
 type CoastieServiceStatus struct {
-	Tests map[string]Test `json"tests"`
+	TestResults map[string]TestResult `json"testresults"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -47,9 +47,9 @@ type CoastieServiceList struct {
 	Items           []CoastieService `json:"items"`
 }
 
-type Test struct {
-	Status string `json:"status,omitempty"`
-    DaemonSetCreationTime   string `json:"status,omitempty"`
+type TestResult struct {
+	Status                string `json:"status,omitempty"`
+	DaemonSetCreationTime string `json:"daemonsetcreationtime,omitempty"`
 }
 
 func init() {

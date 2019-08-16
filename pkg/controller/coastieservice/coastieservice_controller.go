@@ -97,46 +97,46 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 	tests := instance.Spec.Tests
 	for _, v := range tests {
 		if v == "tcp" {
-			err, retry := runTcpTest(instance, r, reqLogger)
+			err, retry := runTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			} else if retry {
 				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		} else if v == "udp" {
-			err, retry := runUdpTest(instance, r, reqLogger)
+			err, retry := runTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			} else if retry {
 				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		} else if v == "http" {
 			err, retry := runHttpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			} else if retry {
 				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
 			}
 		}
 	}
 
-	reqLogger.Info("Reconcile of CoastieService complete")
+	reqLogger.Info("Reconciliation of CoastieService complete")
 	// Clean up old deployments
 	for _, v := range tests {
 		if v == "tcp" {
-			err = deleteTcpTest(instance, r, reqLogger)
+			err = deleteTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			}
 		} else if v == "udp" {
-			err = deleteUdpTest(instance, r, reqLogger)
+			err = deleteTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			}
 		} else if v == "http" {
 			err = deleteHttpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, err
+				return reconcile.Result{RequeueAfter: time.Second * 15}, err
 			}
 		}
 	}
