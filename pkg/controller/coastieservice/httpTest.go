@@ -17,9 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	instr "k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -181,7 +178,8 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		}
 	}
 
-	getPodsReadyTime(r, name, found.Namespace, reqLogger)
+    dsct := instance.Status.TestResults["http"].DaemonSetCreationTime
+	getPodsReadyTime(r, name, found.Namespace, reqLogger, dsct)
 	reqLogger.Info("Reached end of HTTPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry
 }
@@ -323,60 +321,6 @@ func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieSer
 	err = r.client.Delete(context.TODO(), httpIngress)
 	if err != nil {
 		return err
-	}
-	return
-}
-
-func getPodsReadyTime(r *ReconcileCoastieService, name, namespace string, reqLogger logr.Logger) {
-	opts := &client.ListOptions{}
-	opts.SetLabelSelector(fmt.Sprintf("app=%s", name))
-	opts.InNamespace(namespace)
-
-	podList := &corev1.PodList{}
-	ctx := context.TODO()
-	r.client.List(ctx, opts, podList)
-
-	for _, v := range podList.Items {
-		for _, pv := range v.Status.Conditions {
-			if pv.Type == "Ready" {
-				reqLogger.Info("Pod Times", "Pod.Name", v.Name, "Pod.ReadyTime", pv.LastTransitionTime, "NodeName", v.Spec.NodeName, "Namespace", namespace, "Name", name)
-			}
-		}
-	}
-
-	return
-}
-
-func getNodesWithoutPods(r *ReconcileCoastieService, name, namespace string) (nodes []string) {
-	opts := &client.ListOptions{}
-	nodesWithPods := make(map[string]string)
-	nodeList := &corev1.NodeList{}
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-	nodeList, _ = clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	for _, v := range nodeList.Items {
-		nodesWithPods[v.Name] = "True"
-	}
-
-	opts.SetLabelSelector(fmt.Sprintf("app=%s", name))
-	opts.InNamespace(namespace)
-
-	podList := &corev1.PodList{}
-	ctx := context.TODO()
-	r.client.List(ctx, opts, podList)
-
-	for _, v := range podList.Items {
-		delete(nodesWithPods, v.Spec.NodeName)
-	}
-
-	for k, _ := range nodesWithPods {
-		nodes = append(nodes, k)
 	}
 	return
 }

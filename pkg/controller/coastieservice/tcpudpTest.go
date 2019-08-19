@@ -228,7 +228,7 @@ func tcpudpClient(ip, tcpudp string, port int32) (status string) {
 	// Node + port
 	uri := fmt.Sprintf("%s:%d", ip, port)
 	// Connect
-	c, err := net.Dial(tcpudp, uri)
+	c, err := net.DialTimeout(tcpudp, uri, 10*time.Second)
 	if err != nil {
 		status = fmt.Sprintf("ERROR: %s unable to connect", strings.ToUpper(tcpudp))
 		return
