@@ -123,6 +123,8 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 		return nil, retry
 	}
 
+	dsct := instance.Status.TestResults[tcpudp].DaemonSetCreationTime
+	getPodsReadyTime(r, name, found.Namespace, reqLogger, dsct)
 	reqLogger.Info("Reached end of Test", "TestName", strings.ToUpper(tcpudp))
 	return nil, retry
 }

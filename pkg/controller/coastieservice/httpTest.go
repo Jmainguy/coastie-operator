@@ -178,7 +178,7 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		}
 	}
 
-    dsct := instance.Status.TestResults["http"].DaemonSetCreationTime
+	dsct := instance.Status.TestResults["http"].DaemonSetCreationTime
 	getPodsReadyTime(r, name, found.Namespace, reqLogger, dsct)
 	reqLogger.Info("Reached end of HTTPTest", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
 	return nil, retry
