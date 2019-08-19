@@ -98,7 +98,12 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 	runTests(instance, r, reqLogger)
 	cleanUpTests(instance, r, reqLogger)
 	reqLogger.Info("Reconciliation of CoastieService complete")
-	return reconcile.Result{RequeueAfter: time.Second * 300}, nil
+	// RequeueAfter is not working, its requeing instantly on openshift 3.11
+	// For that reason we will just sleep 300 seconds and then try and requeue
+	time.Sleep(300 * time.Second)
+	return reconcile.Result{
+		RequeueAfter: 1 * time.Second,
+	}, nil
 }
 
 func runTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) {
@@ -133,19 +138,22 @@ func cleanUpTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServi
 	tests := instance.Spec.Tests
 	for _, v := range tests {
 		if v == "tcp" {
-			err := deleteTcpUdpTest(instance, r, reqLogger, v)
-			if err != nil {
-				cleanUpTests(instance, r, reqLogger)
+			reqLogger.Info("Cleaning Up Test", "TestName", strings.ToUpper("tcp"))
+			retry := true
+			for retry {
+				retry = cleanUpTest("tcp", instance, r, reqLogger)
 			}
 		} else if v == "udp" {
-			err := deleteTcpUdpTest(instance, r, reqLogger, v)
-			if err != nil {
-				cleanUpTests(instance, r, reqLogger)
+			reqLogger.Info("Cleaning Up Test", "TestName", strings.ToUpper("udp"))
+			retry := true
+			for retry {
+				retry = cleanUpTest("udp", instance, r, reqLogger)
 			}
 		} else if v == "http" {
-			err := deleteHttpTest(instance, r, reqLogger)
-			if err != nil {
-				cleanUpTests(instance, r, reqLogger)
+			reqLogger.Info("Cleaning Up Test", "TestName", strings.ToUpper("http"))
+			retry := true
+			for retry {
+				retry = cleanUpTest("http", instance, r, reqLogger)
 			}
 		}
 	}
@@ -173,6 +181,35 @@ func runTest(testName string, instance *k8sv1alpha1.CoastieService, r *Reconcile
 		if err != nil {
 			retry = true
 			reqLogger.Error(err, "HTTP test encountered an error: ")
+		}
+		return retry
+	}
+	// Shouldnt reach here unless an an invalid case was passed
+	retry = false
+	return retry
+}
+
+func cleanUpTest(testName string, instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (retry bool) {
+	switch testName {
+	case "tcp":
+		err := deleteTcpUdpTest(instance, r, reqLogger, "tcp")
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "TCP Cleanup encountered an error: ")
+		}
+		return retry
+	case "udp":
+		err := deleteTcpUdpTest(instance, r, reqLogger, "udp")
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "UDP Cleanup encountered an error: ")
+		}
+		return retry
+	case "http":
+		err := deleteHttpTest(instance, r, reqLogger)
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "HTTP Cleanup encountered an error: ")
 		}
 		return retry
 	}

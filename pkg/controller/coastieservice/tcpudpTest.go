@@ -123,10 +123,52 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 			retry = true
 			return nil, retry
 		}
+		//} else {
+		//	reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+		//	retry = true
+		//	return nil, retry
+		//}
 	} else {
-		reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
-		retry = true
-		return nil, retry
+		i := 0
+		for i < 5 {
+			// Wait 60 seconds
+			time.Sleep(60 * time.Second)
+			found := &appsv1.DaemonSet{}
+			err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: name}, found)
+			if err != nil {
+				message := fmt.Sprintf("Coastie Operator: Failed to get DaemonSet status")
+				// Alarm slack if failed
+				err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+				if err != nil {
+					reqLogger.Error(err, "Failed to send slack message")
+					return err, retry
+				}
+			}
+			if found.Status.DesiredNumberScheduled == found.Status.NumberReady {
+				reqLogger.Info("DaemonSet is ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+				i = 10
+			} else {
+				reqLogger.Info("DaemonSet is not ready", "DaemonSet.Namespace", found.Namespace, "DaemonSet.Name", name)
+				i++
+			}
+		}
+		if i == 5 {
+			// If here, means Daemonset to not become ready within 5 minutes
+
+			nodes := getNodesWithoutPods(r, name, instance.Namespace)
+			message := fmt.Sprintf("Coastie Operator: DaemonSet took longer than 5 minutes to become ready, nodes with issues: %s", nodes)
+			// Alarm slack if failed
+			err := notifySlack(instance.Spec.SlackToken, instance.Spec.SlackChannelID, message)
+			if err != nil {
+				reqLogger.Error(err, "Failed to send slack message")
+				return err, retry
+			}
+			retry = true
+			return nil, retry
+		} else {
+			retry = true
+			return nil, retry
+		}
 	}
 
 	dsct := instance.Status.TestResults[tcpudp].DaemonSetCreationTime
@@ -242,11 +284,24 @@ func tcpudpClient(ip, tcpudp string, port int32, reqLogger logr.Logger) (status 
 		status = fmt.Sprintf("ERROR: %s unable to connect", strings.ToUpper(tcpudp))
 		return
 	}
-	reqLogger.Info("Connection Successful", "uri", uri, "Test", tcpudp)
+	reqLogger.Info("Connection Successful", "URI", uri, "Test", tcpudp)
 	// Send message
-	c.Write([]byte(question))
+	reqLogger.Info("Client asking question", "Question", question, "Test", tcpudp)
+	_, err = c.Write([]byte(question))
+	if err != nil {
+		status = fmt.Sprintf("ERROR: %s unable to ask question", strings.ToUpper(tcpudp))
+		return
+	}
 	// Read response
-	message, _ := bufio.NewReader(c).ReadString('\n')
+	// Set a deadline to read the message of 2 seconds
+	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	message, err := bufio.NewReader(c).ReadString('\n')
+	if err != nil {
+		c.Close()
+		status = fmt.Sprintf("ERROR: %s Failed - Server: %s", strings.ToUpper(tcpudp), err)
+		return
+	}
+	reqLogger.Info("Client Got answer", "Answer", message, "Test", tcpudp)
 	if message == expectedResponse {
 		c.Close()
 		status = fmt.Sprintf("SUCCESS: %s is working", strings.ToUpper(tcpudp))

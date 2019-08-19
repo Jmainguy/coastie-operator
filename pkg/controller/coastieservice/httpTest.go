@@ -103,7 +103,8 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		// If this is still true later, fail with message
 		httpFail := true
 		httpStatus := ""
-		for i := 0; i < 5; i++ {
+		i := 0
+		for i < 5 {
 			httpStatus = httpClient(instance.Spec.HostURL)
 			if strings.Contains(httpStatus, "SUCCESS") {
 				TestStatus.Status = "Passed"
@@ -116,7 +117,9 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 				i = 5
 			} else {
 				// Pods are running, but failing test, give them a few seconds
-				time.Sleep(2 * time.Second)
+				reqLogger.Info("Test client failed, sleeping for 6 seconds and trying again", "ClientAttempt", i, "Service.Namespace", found.Namespace, "Service.Name", name)
+				i++
+				time.Sleep(6 * time.Second)
 			}
 		}
 		if httpFail {
@@ -294,7 +297,7 @@ func httpClient(hostURL string) (status string) {
 		status = "SUCCESS: HTTP is working"
 		return
 	} else {
-		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %d", resp.StatusCode)
+		status = fmt.Sprintf("ERROR: HTTP Failed - StatusCode Returned was : %d, URL was %s", resp.StatusCode, url)
 		return
 	}
 	status = "ERROR: Should never reach this"
