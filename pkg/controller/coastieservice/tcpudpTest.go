@@ -20,7 +20,6 @@ import (
 )
 
 func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger, tcpudp string) (err error, retry bool) {
-	reqLogger.Info("Begining Test", "TestName", strings.ToUpper(tcpudp))
 	retry = false
 	name := fmt.Sprintf("%s-%s", instance.Name, tcpudp)
 	// Define a new DaemonSet object
@@ -77,15 +76,19 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 			// Service created successfully - return and requeue
 			retry = true
 			return nil, retry
+		} else if err != nil {
+			return err, retry
 		}
 		// Service Exists, how do we connect to it?
 		ServerClusterIP := tcpudpService.Spec.ClusterIP
+		reqLogger.Info("Service exists, trying connection", "Service.Namespace", tcpudpService.Namespace, "Service.Name", name)
 		// Use client to connect to service, try 5 times if fail
 		// If this is still true later, fail with message
 		Fail := true
 		Status := ""
-		for i := 0; i < 5; i++ {
-			Status = tcpudpClient(ServerClusterIP, tcpudp, containerPort)
+		i := 0
+		for i < 5 {
+			Status = tcpudpClient(ServerClusterIP, tcpudp, containerPort, reqLogger)
 			if strings.Contains(Status, "SUCCESS") {
 				TestStatus.Status = "Passed"
 				err = updateCoastieStatus(instance, TestStatus, tcpudp, reqLogger, r)
@@ -94,9 +97,12 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 				}
 				Fail = false
 				// Exit loop
+				reqLogger.Info("Test client connected successfully", "Service.Namespace", tcpudpService.Namespace, "Service.Name", name)
 				i = 5
 			} else {
 				// Pods are running, but failing test, give them a few seconds
+				reqLogger.Info("Test client failed, sleeping for 2 seconds and trying again", "ClientAttempt", i, "Service.Namespace", tcpudpService.Namespace, "Service.Name", name)
+				i++
 				time.Sleep(2 * time.Second)
 			}
 		}
@@ -217,7 +223,7 @@ func tcpudpServerService(cr *k8sv1alpha1.CoastieService, name, tcpudp string) *c
 	}
 }
 
-func tcpudpClient(ip, tcpudp string, port int32) (status string) {
+func tcpudpClient(ip, tcpudp string, port int32, reqLogger logr.Logger) (status string) {
 	var question string
 	var expectedResponse string
 	if tcpudp == "tcp" {
@@ -230,11 +236,13 @@ func tcpudpClient(ip, tcpudp string, port int32) (status string) {
 	// Node + port
 	uri := fmt.Sprintf("%s:%d", ip, port)
 	// Connect
+	reqLogger.Info("Attempting connection", "URI", uri, "Test", tcpudp)
 	c, err := net.DialTimeout(tcpudp, uri, 10*time.Second)
 	if err != nil {
 		status = fmt.Sprintf("ERROR: %s unable to connect", strings.ToUpper(tcpudp))
 		return
 	}
+	reqLogger.Info("Connection Successful", "uri", uri, "Test", tcpudp)
 	// Send message
 	c.Write([]byte(question))
 	// Read response

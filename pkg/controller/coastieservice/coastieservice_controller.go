@@ -2,8 +2,10 @@ package coastieservice
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -93,53 +95,88 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
+	runTests(instance, r, reqLogger)
+	cleanUpTests(instance, r, reqLogger)
+	reqLogger.Info("Reconciliation of CoastieService complete")
+	return reconcile.Result{RequeueAfter: time.Second * 300}, nil
+}
+
+func runTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) {
 	// Check for tests
 	tests := instance.Spec.Tests
 	for _, v := range tests {
 		if v == "tcp" {
-			err, retry := runTcpUdpTest(instance, r, reqLogger, v)
-			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
-			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
+			reqLogger.Info("Begining Test", "TestName", strings.ToUpper("tcp"))
+			retry := true
+			for retry {
+				retry = runTest("tcp", instance, r, reqLogger)
 			}
 		} else if v == "udp" {
-			err, retry := runTcpUdpTest(instance, r, reqLogger, v)
-			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
-			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
+			reqLogger.Info("Begining Test", "TestName", strings.ToUpper("udp"))
+			retry := true
+			for retry {
+				retry = runTest("udp", instance, r, reqLogger)
 			}
 		} else if v == "http" {
-			err, retry := runHttpTest(instance, r, reqLogger)
-			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
-			} else if retry {
-				return reconcile.Result{RequeueAfter: time.Second * 1}, nil
+			reqLogger.Info("Begining Test", "TestName", strings.ToUpper("http"))
+			retry := true
+			for retry {
+				retry = runTest("http", instance, r, reqLogger)
 			}
 		}
 	}
 
-	reqLogger.Info("Reconciliation of CoastieService complete")
+}
+
+func cleanUpTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) {
 	// Clean up old deployments
+	tests := instance.Spec.Tests
 	for _, v := range tests {
 		if v == "tcp" {
-			err = deleteTcpUdpTest(instance, r, reqLogger, v)
+			err := deleteTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
+				cleanUpTests(instance, r, reqLogger)
 			}
 		} else if v == "udp" {
-			err = deleteTcpUdpTest(instance, r, reqLogger, v)
+			err := deleteTcpUdpTest(instance, r, reqLogger, v)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
+				cleanUpTests(instance, r, reqLogger)
 			}
 		} else if v == "http" {
-			err = deleteHttpTest(instance, r, reqLogger)
+			err := deleteHttpTest(instance, r, reqLogger)
 			if err != nil {
-				return reconcile.Result{RequeueAfter: time.Second * 15}, err
+				cleanUpTests(instance, r, reqLogger)
 			}
 		}
 	}
 
-	return reconcile.Result{RequeueAfter: time.Second * 300}, nil
+}
+
+func runTest(testName string, instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (retry bool) {
+	switch testName {
+	case "tcp":
+		err, retry := runTcpUdpTest(instance, r, reqLogger, "tcp")
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "TCP test encountered an error: ")
+		}
+		return retry
+	case "udp":
+		err, retry := runTcpUdpTest(instance, r, reqLogger, "udp")
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "UDP test encountered an error: ")
+		}
+		return retry
+	case "http":
+		err, retry := runHttpTest(instance, r, reqLogger)
+		if err != nil {
+			retry = true
+			reqLogger.Error(err, "HTTP test encountered an error: ")
+		}
+		return retry
+	}
+	// Shouldnt reach here unless an an invalid case was passed
+	retry = false
+	return retry
 }
