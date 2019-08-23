@@ -1,14 +1,14 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: coastieservices.k8s.soh.re
+  name: coasties.k8s.soh.re
 spec:
   group: k8s.soh.re
   names:
-    kind: CoastieService
-    listKind: CoastieServiceList
-    plural: coastieservices
-    singular: coastieservice
+    kind: Coastie
+    listKind: CoastieList
+    plural: coasties
+    singular: coastie
   scope: Namespaced
   subresources:
     status: {}

@@ -4,13 +4,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// CoastieServiceSpec defines the desired state of CoastieService
+// CoastieSpec defines the desired state of Coastie
 // +k8s:openapi-gen=true
-type CoastieServiceSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+type CoastieSpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	Tests          []string `json:"tests"`
@@ -19,32 +15,32 @@ type CoastieServiceSpec struct {
 	HostURL        string   `json:"hosturl"`
 }
 
-// CoastieServiceStatus defines the observed state of CoastieService
+// CoastieStatus defines the observed state of Coastie
 // +k8s:openapi-gen=true
-type CoastieServiceStatus struct {
+type CoastieStatus struct {
 	TestResults map[string]TestResult `json"testresults"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// CoastieService is the Schema for the coastieservices API
+// Coastie is the Schema for the coasties API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
-type CoastieService struct {
+type Coastie struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   CoastieServiceSpec   `json:"spec,omitempty"`
-	Status CoastieServiceStatus `json:"status,omitempty"`
+	Spec   CoastieSpec   `json:"spec,omitempty"`
+	Status CoastieStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// CoastieServiceList contains a list of CoastieService
-type CoastieServiceList struct {
+// CoastieList contains a list of Coastie
+type CoastieList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []CoastieService `json:"items"`
+	Items           []Coastie `json:"items"`
 }
 
 type TestResult struct {
@@ -53,5 +49,5 @@ type TestResult struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&CoastieService{}, &CoastieServiceList{})
+	SchemeBuilder.Register(&Coastie{}, &CoastieList{})
 }

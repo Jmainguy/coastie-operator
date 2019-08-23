@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"github.com/nlopes/slack"

@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"context"
@@ -19,9 +19,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var log = logf.Log.WithName("controller_coastieservice")
+var log = logf.Log.WithName("controller_coastie")
 
-// Add creates a new CoastieService Controller and adds it to the Manager. The Manager will set fields on the Controller
+// Add creates a new Coastie Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
 	return add(mgr, newReconciler(mgr))
@@ -29,28 +29,27 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileCoastieService{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileCoastie{client: mgr.GetClient(), scheme: mgr.GetScheme()}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
-	c, err := controller.New("coastieservice-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New("coastie-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
 
-	// Watch for changes to primary resource CoastieService
-	err = c.Watch(&source.Kind{Type: &k8sv1alpha1.CoastieService{}}, &handler.EnqueueRequestForObject{})
+	// Watch for changes to primary resource Coastie
+	err = c.Watch(&source.Kind{Type: &k8sv1alpha1.Coastie{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	// TODO(user): Modify this to be the types you create that are owned by the primary resource
-	// Watch for changes to secondary resource Pods and requeue the owner CoastieService
+	// Watch for changes to secondary resource Pods and requeue the owner Coastie
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &k8sv1alpha1.CoastieService{},
+		OwnerType:    &k8sv1alpha1.Coastie{},
 	})
 	if err != nil {
 		return err
@@ -59,30 +58,28 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	return nil
 }
 
-// blank assignment to verify that ReconcileCoastieService implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileCoastieService{}
+// blank assignment to verify that ReconcileCoastie implements reconcile.Reconciler
+var _ reconcile.Reconciler = &ReconcileCoastie{}
 
-// ReconcileCoastieService reconciles a CoastieService object
-type ReconcileCoastieService struct {
+// ReconcileCoastie reconciles a Coastie object
+type ReconcileCoastie struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
 	client client.Client
 	scheme *runtime.Scheme
 }
 
-// Reconcile reads that state of the cluster for a CoastieService object and makes changes based on the state read
-// and what is in the CoastieService.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
+// Reconcile reads that state of the cluster for a Coastie object and makes changes based on the state read
+// and what is in the Coastie.Spec
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ReconcileCoastie) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling CoastieService")
+	reqLogger.Info("Reconciling Coastie")
 
-	// Fetch the CoastieService instance
-	instance := &k8sv1alpha1.CoastieService{}
+	// Fetch the Coastie instance
+	instance := &k8sv1alpha1.Coastie{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -97,7 +94,7 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 
 	runTests(instance, r, reqLogger)
 	cleanUpTests(instance, r, reqLogger)
-	reqLogger.Info("Reconciliation of CoastieService complete")
+	reqLogger.Info("Reconciliation of Coastie complete")
 	// RequeueAfter is not working, its requeing instantly on openshift 3.11
 	// For that reason we will just sleep 300 seconds and then try and requeue
 	time.Sleep(300 * time.Second)
@@ -106,7 +103,7 @@ func (r *ReconcileCoastieService) Reconcile(request reconcile.Request) (reconcil
 	}, nil
 }
 
-func runTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) {
+func runTests(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) {
 	// Check for tests
 	tests := instance.Spec.Tests
 	for _, v := range tests {
@@ -133,7 +130,7 @@ func runTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, 
 
 }
 
-func cleanUpTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) {
+func cleanUpTests(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) {
 	// Clean up old deployments
 	tests := instance.Spec.Tests
 	for _, v := range tests {
@@ -160,7 +157,7 @@ func cleanUpTests(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServi
 
 }
 
-func runTest(testName string, instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (retry bool) {
+func runTest(testName string, instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) (retry bool) {
 	switch testName {
 	case "tcp":
 		err, retry := runTcpUdpTest(instance, r, reqLogger, "tcp")
@@ -189,7 +186,7 @@ func runTest(testName string, instance *k8sv1alpha1.CoastieService, r *Reconcile
 	return retry
 }
 
-func cleanUpTest(testName string, instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (retry bool) {
+func cleanUpTest(testName string, instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) (retry bool) {
 	switch testName {
 	case "tcp":
 		err := deleteTcpUdpTest(instance, r, reqLogger, "tcp")

@@ -5,7 +5,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: coastie-operator
-  namespace: coastie-operator
+  namespace: coastie
 roleRef:
   kind: ClusterRole
   name: coastie-operator

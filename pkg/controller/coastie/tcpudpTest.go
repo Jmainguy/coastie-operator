@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"bufio"
@@ -19,12 +19,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger, tcpudp string) (err error, retry bool) {
+func runTcpUdpTest(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger, tcpudp string) (err error, retry bool) {
 	retry = false
 	name := fmt.Sprintf("%s-%s", instance.Name, tcpudp)
 	// Define a new DaemonSet object
 	DaemonSet, containerPort := tcpudpServer(instance, name, tcpudp)
-	// Set CoastieService instance as the owner and controller
+	// Set Coastie instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, DaemonSet, r.scheme); err != nil {
 		return err, retry
 	}
@@ -61,7 +61,7 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 		// All pods are now running, run test against them
 		// Spin up service
 		tcpudpService := tcpudpServerService(instance, name, tcpudp)
-		// Set CoastieService instance as the owner and controller
+		// Set Coastie instance as the owner and controller
 		if err := controllerutil.SetControllerReference(instance, tcpudpService, r.scheme); err != nil {
 			return err, retry
 		}
@@ -177,7 +177,7 @@ func runTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServ
 	return nil, retry
 }
 
-func tcpudpServer(cr *k8sv1alpha1.CoastieService, name, tcpudp string) (ds *appsv1.DaemonSet, containerPort int32) {
+func tcpudpServer(cr *k8sv1alpha1.Coastie, name, tcpudp string) (ds *appsv1.DaemonSet, containerPort int32) {
 	var image string
 	if tcpudp == "udp" {
 		containerPort = 8082
@@ -232,7 +232,7 @@ func tcpudpServer(cr *k8sv1alpha1.CoastieService, name, tcpudp string) (ds *apps
 	return ds, containerPort
 }
 
-func tcpudpServerService(cr *k8sv1alpha1.CoastieService, name, tcpudp string) *corev1.Service {
+func tcpudpServerService(cr *k8sv1alpha1.Coastie, name, tcpudp string) *corev1.Service {
 	var containerName string
 	var containerPort int32
 	var protocol corev1.Protocol
@@ -315,7 +315,7 @@ func tcpudpClient(ip, tcpudp string, port int32, reqLogger logr.Logger) (status 
 	return
 }
 
-func deleteTcpUdpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger, tcpudp string) (err error) {
+func deleteTcpUdpTest(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger, tcpudp string) (err error) {
 	err = nil
 	name := fmt.Sprintf("%s-%s", instance.Name, tcpudp)
 	// Delete DaemonSet

@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"context"
@@ -20,12 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error, retry bool) {
+func runHttpTest(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) (err error, retry bool) {
 	retry = false
 	name := fmt.Sprintf("%s-http", instance.Name)
 	// Define a new DaemonSet object
 	httpDaemonSet := httpServer(instance, name)
-	// Set CoastieService instance as the owner and controller
+	// Set Coastie instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, httpDaemonSet, r.scheme); err != nil {
 		return err, retry
 	}
@@ -63,7 +63,7 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		// All pods are now running, run test against them
 		// Spin up service
 		httpService := httpServerService(instance, name)
-		// Set CoastieService instance as the owner and controller
+		// Set Coastie instance as the owner and controller
 		if err := controllerutil.SetControllerReference(instance, httpService, r.scheme); err != nil {
 			return err, retry
 		}
@@ -82,7 +82,7 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 		// Service Exists
 		// Spin up ingress
 		httpIngress := httpServerIngress(instance, name)
-		// Set CoastieService instance as the owner and controller
+		// Set Coastie instance as the owner and controller
 		if err := controllerutil.SetControllerReference(instance, httpIngress, r.scheme); err != nil {
 			return err, retry
 		}
@@ -187,7 +187,7 @@ func runHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieServic
 	return nil, retry
 }
 
-func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
+func httpServer(cr *k8sv1alpha1.Coastie, name string) *appsv1.DaemonSet {
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -233,7 +233,7 @@ func httpServer(cr *k8sv1alpha1.CoastieService, name string) *appsv1.DaemonSet {
 	}
 }
 
-func httpServerService(cr *k8sv1alpha1.CoastieService, name string) *corev1.Service {
+func httpServerService(cr *k8sv1alpha1.Coastie, name string) *corev1.Service {
 	port := instr.FromInt(8080)
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -256,7 +256,7 @@ func httpServerService(cr *k8sv1alpha1.CoastieService, name string) *corev1.Serv
 	}
 }
 
-func httpServerIngress(cr *k8sv1alpha1.CoastieService, name string) *extensionsv1beta1.Ingress {
+func httpServerIngress(cr *k8sv1alpha1.Coastie, name string) *extensionsv1beta1.Ingress {
 	port := instr.FromInt(80)
 	return &extensionsv1beta1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
@@ -304,7 +304,7 @@ func httpClient(hostURL string) (status string) {
 	return
 }
 
-func deleteHttpTest(instance *k8sv1alpha1.CoastieService, r *ReconcileCoastieService, reqLogger logr.Logger) (err error) {
+func deleteHttpTest(instance *k8sv1alpha1.Coastie, r *ReconcileCoastie, reqLogger logr.Logger) (err error) {
 	err = nil
 	name := fmt.Sprintf("%s-http", instance.Name)
 	// Delete DaemonSet

@@ -1,10 +1,12 @@
 apiVersion: k8s.soh.re/v1alpha1
-kind: CoastieService
+kind: Coastie
 metadata:
   name: testest
 spec:
   tests:
     - tcp
+    - udp
+    - http
   slackchannelid: "FAKEID"
   slacktoken: "FAKETOKEN"
   hosturl: "k8s.example.soh.re"

@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func getPodsReadyTime(r *ReconcileCoastieService, name, namespace string, reqLogger logr.Logger, dsct string) {
+func getPodsReadyTime(r *ReconcileCoastie, name, namespace string, reqLogger logr.Logger, dsct string) {
 	t, err := time.Parse(time.RFC3339, dsct)
 	if err != nil {
 		panic(err.Error())
@@ -39,7 +39,7 @@ func getPodsReadyTime(r *ReconcileCoastieService, name, namespace string, reqLog
 	return
 }
 
-func getNodesWithoutPods(r *ReconcileCoastieService, name, namespace string) (nodes []string) {
+func getNodesWithoutPods(r *ReconcileCoastie, name, namespace string) (nodes []string) {
 	opts := &client.ListOptions{}
 	nodesWithPods := make(map[string]string)
 	nodeList := &corev1.NodeList{}

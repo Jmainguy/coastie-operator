@@ -13,17 +13,17 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieService":       schema_pkg_apis_k8s_v1alpha1_CoastieService(ref),
-		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceSpec":   schema_pkg_apis_k8s_v1alpha1_CoastieServiceSpec(ref),
-		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceStatus": schema_pkg_apis_k8s_v1alpha1_CoastieServiceStatus(ref),
+		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.Coastie":       schema_pkg_apis_k8s_v1alpha1_Coastie(ref),
+		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieSpec":   schema_pkg_apis_k8s_v1alpha1_CoastieSpec(ref),
+		"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieStatus": schema_pkg_apis_k8s_v1alpha1_CoastieStatus(ref),
 	}
 }
 
-func schema_pkg_apis_k8s_v1alpha1_CoastieService(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_k8s_v1alpha1_Coastie(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CoastieService is the Schema for the coastieservices API",
+				Description: "Coastie is the Schema for the coasties API",
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
@@ -46,27 +46,27 @@ func schema_pkg_apis_k8s_v1alpha1_CoastieService(ref common.ReferenceCallback) c
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceSpec"),
+							Ref: ref("github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceStatus"),
+							Ref: ref("github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceSpec", "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieServiceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieSpec", "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1.CoastieStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_pkg_apis_k8s_v1alpha1_CoastieServiceSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_k8s_v1alpha1_CoastieSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CoastieServiceSpec defines the desired state of CoastieService",
+				Description: "CoastieSpec defines the desired state of Coastie",
 				Properties:  map[string]spec.Schema{},
 			},
 		},
@@ -74,11 +74,11 @@ func schema_pkg_apis_k8s_v1alpha1_CoastieServiceSpec(ref common.ReferenceCallbac
 	}
 }
 
-func schema_pkg_apis_k8s_v1alpha1_CoastieServiceStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_k8s_v1alpha1_CoastieStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CoastieServiceStatus defines the observed state of CoastieService",
+				Description: "CoastieStatus defines the observed state of Coastie",
 				Properties:  map[string]spec.Schema{},
 			},
 		},

@@ -1,4 +1,4 @@
-package coastieservice
+package coastie
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	k8sv1alpha1 "github.com/jmainguy/coastie-operator/pkg/apis/k8s/v1alpha1"
 )
 
-func updateCoastieStatus(instance *k8sv1alpha1.CoastieService, TestStatus k8sv1alpha1.TestResult, TestName string, reqLogger logr.Logger, r *ReconcileCoastieService) (err error) {
+func updateCoastieStatus(instance *k8sv1alpha1.Coastie, TestStatus k8sv1alpha1.TestResult, TestName string, reqLogger logr.Logger, r *ReconcileCoastie) (err error) {
 	if instance.Status.TestResults == nil {
 		instance.Status.TestResults = make(map[string]k8sv1alpha1.TestResult)
 	}
@@ -19,7 +19,7 @@ func updateCoastieStatus(instance *k8sv1alpha1.CoastieService, TestStatus k8sv1a
 		time.Sleep(5 * time.Second)
 		err = r.client.Status().Update(context.TODO(), instance)
 		if err != nil {
-			reqLogger.Error(err, "Failed to update CoastieService status")
+			reqLogger.Error(err, "Failed to update Coastie status")
 			return err
 		}
 	}
