@@ -50,3 +50,27 @@ spec:
     requests.cpu: "3"
     requests.memory: 3Gi
 ```
+
+### Edit Coastie CustomResource and apply
+```/bin/bash
+apiVersion: k8s.soh.re/v1alpha1
+kind: Coastie
+metadata:
+  name: testest
+spec:
+  tests:
+    - tcp
+    - udp
+    - http
+  slackchannelid: "FAKEID"
+  slacktoken: "FAKETOKEN"
+  hosturl: "k8s.example.soh.re"
+```
+
+- Change hosturl to a hostname that will resolve to your k8s router.
+- Change slacktoken and slackchannelid to your slack details.
+- Change tests to the ones you want to run, or leave as is for all 3.
+
+```/bin/bash
+oc create -f deploy/crds/k8s_v1alpha1_coastie_cr.yaml
+```
